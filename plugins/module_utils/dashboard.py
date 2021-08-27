@@ -7,7 +7,7 @@ class DashboardMixin(object):
             'output': ('dashboardid', )
         })
 
-        return result and result[0]['dashboardid']
+        return result and result[0]['dashboardid'] or None
 
     def dashboard(self, id):
         data = self._zapi.dashboard.get({

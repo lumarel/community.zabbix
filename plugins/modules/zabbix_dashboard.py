@@ -59,11 +59,6 @@ from ansible_collections.community.zabbix.plugins.module_utils.base import Zabbi
 from ansible_collections.community.zabbix.plugins.module_utils.dashboard import DashboardMixin
 
 
-def debug():
-    from remote_pdb import RemotePdb
-    RemotePdb('127.0.0.1', 4444).set_trace()
-
-
 class Dashboard(ZabbixBase, DashboardMixin):
 
     def load(self, content):
@@ -85,7 +80,8 @@ class Dashboard(ZabbixBase, DashboardMixin):
                     'after': dashboard,
                 })
 
-            assert False
+            dashboard['name'] = name
+
             self._zapi.dashboard.create(dashboard)
             return True
 
@@ -106,8 +102,6 @@ class Dashboard(ZabbixBase, DashboardMixin):
             'pages': [{}],
         })
 
-        # Shallow copy, to include the name and id
-        dashboard = dashboard.copy()
         dashboard['name'] = name
         dashboard['dashboardid'] = dashboard_id
 
