@@ -8,7 +8,7 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 
-DOCUMENTATION = '''
+DOCUMENTATION = """
 module: zabbix_user_info
 short_description: Gather information about Zabbix user
 author:
@@ -16,35 +16,53 @@ author:
 description:
     - This module allows you to search for Zabbix user entries.
 requirements:
-    - "python >= 2.6"
-    - "zabbix-api >= 0.5.4"
+    - "python >= 3.9"
 options:
-    alias:
+    username:
         description:
-            - Name of the user alias in Zabbix.
+            - User name.
+            - sername is the unique identifier used and cannot be updated using this module.
         required: true
         type: str
 extends_documentation_fragment:
 - community.zabbix.zabbix
 
-'''
+"""
 
-EXAMPLES = '''
+EXAMPLES = """
+# If you want to use Username and Password to be authenticated by Zabbix Server
+- name: Set credentials to access Zabbix Server API
+  ansible.builtin.set_fact:
+    ansible_user: Admin
+    ansible_httpapi_pass: zabbix
+
+# If you want to use API token to be authenticated by Zabbix Server
+# https://www.zabbix.com/documentation/current/en/manual/web_interface/frontend_sections/administration/general#api-tokens
+- name: Set API token
+  ansible.builtin.set_fact:
+    ansible_zabbix_auth_key: 8ec0d52432c15c91fcafe9888500cf9a607f44091ab554dbee860f6b44fac895
+
 - name: Get zabbix user info
+  # set task level variables as we change ansible_connection plugin here
+  vars:
+    ansible_network_os: community.zabbix.zabbix
+    ansible_connection: httpapi
+    ansible_httpapi_port: 443
+    ansible_httpapi_use_ssl: true
+    ansible_httpapi_validate_certs: false
+    ansible_zabbix_url_path: "zabbixeu"  # If Zabbix WebUI runs on non-default (zabbix) path ,e.g. http://<FQDN>/zabbixeu
+    ansible_host: zabbix-example-fqdn.org
   community.zabbix.zabbix_user_info:
-    server_url: "http://zabbix.example.com/zabbix/"
-    login_user: admin
-    login_password: secret
-    alias: example
-'''
+    username: example
+"""
 
-RETURN = '''
+RETURN = """
 zabbix_user:
   description: example
   returned: always
   type: dict
   sample: {
-  "alias": "example",
+  "username": "example",
   "attempt_clock": "0",
   "attempt_failed": "0",
   "attempt_ip": "",
@@ -83,7 +101,7 @@ zabbix_user:
       }
     ]
   }
-'''
+"""
 
 
 from ansible.module_utils.basic import AnsibleModule
@@ -93,12 +111,15 @@ import ansible_collections.community.zabbix.plugins.module_utils.helpers as zabb
 
 
 class User(ZabbixBase):
-    def get_user_by_user_alias(self, alias):
+    def get_user_by_user_username(self, username):
         zabbix_user = ""
         try:
-            zabbix_user = self._zapi.user.get({'output': 'extend', 'filter': {'alias': alias},
-                                               'getAccess': True, 'selectMedias': 'extend',
-                                               'selectUsrgrps': 'extend'})
+            data = {"output": "extend", "filter": {},
+                    "getAccess": True, "selectMedias": "extend",
+                    "selectUsrgrps": "extend"}
+            data["filter"]["username"] = username
+
+            zabbix_user = self._zapi.user.get(data)
         except Exception as e:
             self._zapi.logout()
             self._module.fail_json(msg="Failed to get user information: %s" % e)
@@ -114,17 +135,17 @@ class User(ZabbixBase):
 def main():
     argument_spec = zabbix_utils.zabbix_common_argument_spec()
     argument_spec.update(dict(
-        alias=dict(type='str', required=True),
+        username=dict(type="str", required=True),
     ))
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True
     )
 
-    alias = module.params['alias']
+    username = module.params["username"]
 
     user = User(module)
-    zabbix_user = user.get_user_by_user_alias(alias)
+    zabbix_user = user.get_user_by_user_username(username)
     module.exit_json(changed=False, zabbix_user=zabbix_user)
 
 

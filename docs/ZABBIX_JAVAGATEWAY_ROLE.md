@@ -29,30 +29,22 @@ This role will work on the following operating systems:
  * Ubuntu
 
 So, you'll need one of those operating systems.. :-)
-Please send Pull Requests or suggestions when you want to use this role for other Operating systems.
 
 ## Zabbix Versions
 
 See the following list of supported Operating systems with the Zabbix releases.
 
-| Zabbix              | 5.2 | 5.0 | 4.4 | 4.0 (LTS) | 3.0 (LTS) |
-|---------------------|-----|-----|-----|-----------|-----------|
-| Red Hat Fam 8       |  V  |  V  | V   |           |           |
-| Red Hat Fam 7       |  V  |  V  | V   | V         | V         |
-| Red Hat Fam 6       |  V  |  V  |     |           | V         |
-| Red Hat Fam 5       |  V  |  V  |     |           | V         |
-| Fedora              |     |     | V   | V         |           |
-| Ubuntu 20.04 focal  |  V  |  V  |     |           |           |
-| Ubuntu 19.10 eoan   |     |     |     |           |           |
-| Ubuntu 18.04 bionic |  V  |  V  | V   | V         |           |
-| Ubuntu 16.04 xenial |  V  |  V  | V   | V         |           |
-| Ubuntu 14.04 trusty |  V  |  V  | V   | V         | V         |
-| Debian 10 buster    |  V  |  V  | V   |           |           |
-| Debian 9 stretch    |  V  |  V  | V   | V         |           |
-| Debian 8 jessie     |  V  |  V  | V   | V         | V         |
-| Debian 7 wheezy     |     |     |     | V         | V         |
-| macOS 10.15         |     |     | V   | V         |           |
-| macOS 10.14         |     |     | V   | V         |           |
+| Zabbix              | 7.2 | 7.0 | 6.0 |
+|---------------------|-----|-----|-----|
+| Red Hat Fam 9       |  V  |  V  |  V  |
+| Red Hat Fam 8       |  V  |  V  |  V  |
+| Ubuntu 24.04 noble  |  V  |  V  |  V  |
+| Ubuntu 22.04 jammy  |  V  |  V  |  V  |
+| Debian 12 bookworm  |  V  |  V  |  V  |
+| Debian 11 bullseye  |  V  |  V  |  V  |
+| Suse Fam 15         |  V  |  V  |  V  |
+
+You can bypass this matrix by setting `enable_version_check: false`
 
 # Role Variables
 
@@ -62,17 +54,17 @@ The following is an overview of all available configuration default for this rol
 
 ### Overall Zabbix
 
-* `zabbix_javagateway_version`: This is the version of zabbix. Default: 5.2. Can be overridden to 5.0, 4.4, 4.0, 3.4, 3.2, 3.0, 2.4, or 2.2. Previously the variable `zabbix_version` was used directly but it could cause [some inconvenience](https://github.com/dj-wasabi/ansible-zabbix-agent/pull/303). That variable is maintained by retrocompativility.
-* `zabbix_repo`: Default: `zabbix`
-  * `epel`: install agent from EPEL repo
-  * `zabbix`: (default) install agent from Zabbix repo
-  * `other`: install agent from pre-existing or other repo
+The `zabbix_javagateway_version` is optional. The latest available major.minor version of Zabbix will be installed on the host(s). If you want to use an older version, please specify this in the major.minor format. Example: `zabbix_javagateway_version: 6.0`.
 * `zabbix_repo_yum`: A list with Yum repository configuration.
 * `zabbix_repo_yum_schema`: Default: `https`. Option to change the web schema for the yum repository(http/https)
-* `zabbix_repo_yum_disabled`: A string with repository names that should be disabled when installing Zabbix component specific packages. Is only used when `zabbix_repo_yum_enabled` contains 1 or more repositories. Default `*`.
-* `zabbix_repo_yum_enabled`: A list with repository names that should be enabled when installing Zabbix component specific packages.
+* `zabbix_javagateway_disable_repo`: A list of repos to disable during install.  Default `epel`.
 * `zabbix_javagateway_package_state`: Default: `present`. Can be overridden to `latest` to update packages when needed.
 * `zabbix_javagateway_conf_mode`: Default: `0644`. The "mode" for the Zabbix configuration file.
+* `zabbix_repo_deb_url`: The URL to the Zabbix repository.  Default `http://repo.zabbix.com/zabbix/{{ zabbix_agent_version }}/{{ ansible_distribution.lower() }}`
+* `zabbix_repo_deb_component`: The repository component for Debian installs. Default `main`.
+* `zabbix_repo_deb_gpg_key_url`: The URL to download the Zabbix GPG key from. Default `http://repo.zabbix.com/zabbix-official-repo.key`.
+* `zabbix_repo_deb_include_deb_src`: True, if deb-src should be included in the zabbix.sources entry. Default `true`.
+* `zabbix_manage_repo`: Have the collection install and configure the Zabbix repo Default `true`.
 
 ### Java Gatewaty
 
@@ -103,9 +95,20 @@ or when using the zabbix-proxy:
 ```yaml
   roles:
     - role: community.zabbix.zabbix_proxy
-      zabbix_server_host: 192.168.1.1
+      zabbix_proxy_server: 192.168.1.1
       zabbix_proxy_javagateway: 192.168.1.2
 ```
+
+## Tags
+
+The majority of tasks within this role are tagged as follows:
+
+* `install`:  Tasks associated with the installation of software.
+* `dependencies`:  Installation tasks related to dependencies that aren't part of the core zabbix installation.
+* `database`: Tasks associated with the installation or configuration of the database.
+* `api`:  Tasks associated with using the Zabbix API to connect and modify the Zabbix server.
+* `config`:  Tasks associated with the configuration of Zabbix or a supporting service.
+* `service`:  Tasks associated with managing a service.
 
 # Example Playbook
 

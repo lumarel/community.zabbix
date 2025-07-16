@@ -1,25 +1,26 @@
 ---
 - name: Pull service facts
-  service_facts:
+  ansible.builtin.service_facts:
 
-- name: "Remove | Make sure the \"old\" zabbix-agent service is running"
-  service:
-    name: "zabbix-agent"
+- name: 'Remove | Make sure the "old" zabbix-agent service stopped'
+  ansible.builtin.service:
+    name: "{{ zabbix_agent_service | replace('agent2', 'agent') }}"
     state: stopped
-    enabled: no
-  become: yes
+    enabled: false
+  become: true
   when: |
     ansible_facts.services["zabbix-agent.service"] is defined or
     ansible_facts.services["zabbix-agent"] is defined
 
-- name: "Remove | package removal"
-  package:
-    name: "zabbix-agent"
+- name: "Remove | Package removal"
+  ansible.builtin.package:
+    name: "{{ zabbix_agent_package | replace('agent2', 'agent') }}"
     state: absent
-  become: yes
+  become: true
 
 - name: "Remove | Remove the agent-include-dir"
-  file:
-    path: "{{ zabbix_agent_include }}"
+  ansible.builtin.file:
+    path: "{{ item | replace('agent2', 'agent') }}"
     state: absent
-  become: yes
+  loop: "{{ zabbix_agent_include_dirs }}"
+  become: true

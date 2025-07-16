@@ -14,13 +14,17 @@ def zabbix_common_argument_spec():
     The options are commonly used by most of Zabbix modules.
     """
     return dict(
-        server_url=dict(type='str', required=True, aliases=['url']),
-        login_user=dict(type='str', required=True),
-        login_password=dict(type='str', required=True, no_log=True),
-        http_login_user=dict(type='str', required=False, default=None),
-        http_login_password=dict(type='str', required=False, default=None, no_log=True),
-        timeout=dict(type='int', default=10),
-        validate_certs=dict(type='bool', required=False, default=True),
+        http_login_user=dict(
+            type='str',
+            required=False,
+            default=None
+        ),
+        http_login_password=dict(
+            type='str',
+            required=False,
+            default=None,
+            no_log=True
+        )
     )
 
 
@@ -42,10 +46,11 @@ def helper_cleanup_data(obj):
         return obj
 
 
-def helper_to_numeric_value(strs, value):
+def helper_to_numeric_value(elements, value):
     """Converts string values to integers
 
     Parameters:
+        elements: list of elements to enumerate
         value: string value
 
     Returns:
@@ -53,10 +58,13 @@ def helper_to_numeric_value(strs, value):
     """
     if value is None:
         return None
-    strs = [s.lower() if isinstance(s, str) else s for s in strs]
-    value = value.lower()
-    tmp_dict = dict(zip(strs, list(range(len(strs)))))
-    return tmp_dict[value]
+    for index, element in enumerate(elements):
+        if isinstance(element, str) and element.lower() == value.lower():
+            return index
+        if isinstance(element, list):
+            for deep_element in element:
+                if isinstance(deep_element, str) and deep_element.lower() == value.lower():
+                    return index
 
 
 def helper_convert_unicode_to_str(data):
@@ -97,8 +105,13 @@ def helper_compare_lists(l1, l2, diff_dict):
         return diff_dict
     for i, item in enumerate(l1):
         if isinstance(item, dict):
-            diff_dict.insert(i, {})
-            diff_dict[i] = helper_compare_dictionaries(item, l2[i], diff_dict[i])
+            for item2 in l2:
+                diff_dict2 = {}
+                diff_dict2 = helper_compare_dictionaries(item, item2, diff_dict2)
+                if len(diff_dict2) == 0:
+                    break
+            if len(diff_dict2) != 0:
+                diff_dict.insert(i, item)
         else:
             if item != l2[i]:
                 diff_dict.append(item)
@@ -153,7 +166,7 @@ def helper_normalize_data(data, del_keys=None):
         data: dictionary
 
     Returns:
-        data: None parameter removed data
+        data: falsene parameter removed data
         del_keys: deleted keys
     """
     if del_keys is None:

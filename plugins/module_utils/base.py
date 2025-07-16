@@ -7,7 +7,7 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
-from ansible_collections.community.zabbix.plugins.module_utils.wrappers import ZapiWrapper
+from ansible_collections.community.zabbix.plugins.module_utils.api_request import ZabbixApiRequest
 
 
 class ZabbixBase(object):
@@ -16,12 +16,5 @@ class ZabbixBase(object):
     """
     def __init__(self, module, zbx=None, zapi_wrapper=None):
         self._module = module
-
-        if zapi_wrapper is None:
-            self._zapi_wrapper = ZapiWrapper(module, zbx)
-        else:
-            self._zapi_wrapper = zapi_wrapper
-
-        # include some backward compat properties for now
-        self._zapi = self._zapi_wrapper._zapi
-        self._zbx_api_version = self._zapi_wrapper._zbx_api_version
+        self._zapi = ZabbixApiRequest(module)
+        self._zbx_api_version = self._zapi.api_version()

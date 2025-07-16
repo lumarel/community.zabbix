@@ -1,100 +1,132 @@
 ---
-# tasks file for wdijkerman.zabbix-web
-
 - name: "Include OS-specific variables"
-  include_vars: "{{ ansible_os_family }}.yml"
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
   tags:
     - always
 
-- name: "Include distribution and version-specific vars"
-  include_vars: "{{ item }}"
-  with_first_found:
-    - files:
-        - "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
-        - "{{ ansible_os_family }}-{{ ansible_distribution_major_version }}.yml"
-
-- name: "Set some versions"
-  set_fact:
-    zabbix_short_version: "{{ zabbix_version | regex_replace('\\.', '') }}"
-    zabbix_php_version: "{{ zabbix_php_version if zabbix_php_version is defined else _zabbix_php_version }}"
-    _zabbix_php_package_prefix: ''
+- name: Determine Latest Supported Zabbix Version
+  ansible.builtin.set_fact:
+    zabbix_web_version: "{{ zabbix_valid_web_versions[ansible_facts['distribution_major_version']][0] | default(7.2) }}"
+  when: zabbix_web_version is not defined
   tags:
     - always
 
-- name: "Set default PHP-FPM variables"
-  set_fact:
+- name: Set More Variables
+  ansible.builtin.set_fact:
+    zabbix_db_type_long: "{{ 'postgresql' if zabbix_server_database == 'pgsql' else 'mysql' }}"
+  tags:
+    - always
+
+- name: Check that version is supported
+  when: zabbix_web_version_check | bool
+  ansible.builtin.assert:
+    that:
+      - "{{ zabbix_web_version|float in zabbix_valid_web_versions[ ansible_facts['distribution_major_version'] ] }}"
+    fail_msg: Zabbix version {{ zabbix_web_version }} is not supported on {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_major_version'] }}
+  tags:
+    - always
+
+- name: Determine PHP Version
+  ansible.builtin.shell: php --version | head -1 | awk '{ print $2 }' | awk -F '.' '{print $1"."$2}'
+  register: _zabbix_web_php_installed_version
+  changed_when: false
+  tags:
+    - config
+    - install
+
+- name: Set PHP Version
+  ansible.builtin.set_fact:
+    zabbix_web_php_installed_version: "{{ _zabbix_web_php_installed_version.stdout }}"
+  tags:
+    - config
+    - install
+
+- name: Set PHP Variables
+  ansible.builtin.set_fact:
+    zabbix_php_fpm_listen: "{{ zabbix_php_fpm_listen if zabbix_php_fpm_listen is defined else _zabbix_php_fpm_listen }}"
     zabbix_php_fpm_dir: "{{ zabbix_php_fpm_dir if zabbix_php_fpm_dir is defined else _php_fpm_dir }}"
     zabbix_php_fpm_session: "{{ zabbix_php_fpm_session if zabbix_php_fpm_session is defined else _php_fpm_session }}"
-    zabbix_php_fpm_listen: "{{ zabbix_php_fpm_listen if zabbix_php_fpm_listen is defined else _php_fpm_listen }}"
-  when:
-    - not zabbix_php_fpm
-
-- name: "Set default PHP-FPM variables specific RH provided"
-  set_fact:
-    zabbix_php_fpm_dir: "{{ zabbix_php_fpm_dir if zabbix_php_fpm_dir is defined else _php_fpm_dir }}"
-    zabbix_php_fpm_session: "{{ zabbix_php_fpm_session if zabbix_php_fpm_session is defined else _zabbix_php_fpm_session }}"
-    zabbix_php_fpm_listen: "{{ zabbix_php_fpm_listen if zabbix_php_fpm_listen is defined else _zabbix_php_fpm_listen }}"
-  when:
-    - zabbix_php_fpm
-    - ansible_os_family == "RedHat"
-
-- name: "Set websrv specific variables (Apache)"
-  set_fact:
-    zabbix_web_conf_web_user: "{{ zabbix_web_conf_web_user if zabbix_web_conf_web_user is defined else _apache_user }}"
-    zabbix_web_conf_web_group: "{{ zabbix_web_conf_web_group if zabbix_web_conf_web_group is defined else _apache_group }}"
-  when:
-    - zabbix_websrv == 'apache'
-
-- include_tasks: apache.yml
-  when:
-    - zabbix_websrv == 'apache'
-
-- include_tasks: nginx.yml
-  when:
-    - zabbix_websrv == 'nginx'
-
-- name: "Install the correct repository"
-  include: "RedHat.yml"
-  when: ansible_os_family == "RedHat"
   tags:
-    - zabbix-web
+    - config
+    - install
 
-- name: "Install the correct repository"
-  include: "Debian.yml"
-  when: ansible_os_family == "Debian"
+- name: Install Repository
+  ansible.builtin.include_role:
+    name: community.zabbix.zabbix_repo
+  vars:
+    zabbix_repo_version: "{{ zabbix_web_version }}"
+    zabbix_repo_package: "zabbix-web-service"
+    zabbix_repo_apt_priority: "{{ zabbix_web_apt_priority | default (omit) }}"
+  when: zabbix_manage_repo | default(true)
+
+- name: Include OS Specific Tasks
+  ansible.builtin.include_tasks: "{{ ansible_facts['os_family'] }}.yml"
+
+- name: "Install zabbix-web package"
+  ansible.builtin.package:
+    name: "{{ _zabbix_web_package }}"
+    state: "{{ zabbix_web_package_state }}"
+    update_cache: true
+    disablerepo: "{{ zabbix_web_disable_repo | default(_zabbix_web_disable_repo | default(omit)) }}"
+  environment:
+    http_proxy: "{{ zabbix_http_proxy | default(None) | default(omit) }}"
+    https_proxy: "{{ zabbix_https_proxy | default(None) | default(omit) }}"
+  register: _zabbix_web_package_installed
+  until: _zabbix_web_package_installed is succeeded
+  become: true
   tags:
-    - zabbix-web
+    - install
+
+- name: "Debian | Link graphfont.ttf (workaround ZBX-10467)"
+  when: 
+    - ansible_facts['os_family'] == 'Debian'
+    - zabbix_web_version is version ('7.2', '<')
+  ansible.builtin.file:
+    src: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    path: "/usr/share/zabbix/fonts/graphfont.ttf"
+    state: link
+  become: true
+  tags:
+    - install
+
+- name: "Install the web server specific tasks"
+  ansible.builtin.include_tasks: "{{ zabbix_web_http_server }}.yml"
 
 - name: "Create zabbix-web directory"
-  file:
+  ansible.builtin.file:
     path: /etc/zabbix/web
-    owner: "{{ zabbix_web_conf_web_user }}"
-    group: "{{ zabbix_web_conf_web_group }}"
+    owner: "{{ zabbix_php_fpm_conf_user }}"
+    group: "{{ zabbix_php_fpm_conf_group }}"
     state: directory
     mode: 0755
+  become: true
   tags:
-    - zabbix-web
-    - init
+    - install
     - config
 
 - name: "Configure zabbix-web"
-  template:
+  ansible.builtin.template:
     src: zabbix.conf.php.j2
     dest: /etc/zabbix/web/zabbix.conf.php
-    owner: "{{ zabbix_web_conf_web_user }}"
-    group: "{{ zabbix_web_conf_web_group }}"
+    owner: "{{ zabbix_php_fpm_conf_user }}"
+    group: "{{ zabbix_php_fpm_conf_group }}"
     mode: "{{ zabbix_web_conf_mode }}"
-  notify:
-    - restart apache
+  become: true
   tags:
-    - zabbix-web
-    - init
     - config
 
-- include_tasks: access.yml
+- name: "Install PHP"
+  ansible.builtin.template:
+    src: php-fpm.conf.j2
+    dest: "{{ zabbix_php_fpm_dir }}/zabbix.conf"
+    owner: "{{ zabbix_php_fpm_conf_user }}"
+    group: "{{ zabbix_php_fpm_conf_group }}"
+    mode: 0644
+  become: true
   when:
-    - zabbix_web_htpasswd
+    - zabbix_web_create_php_fpm
+  notify:
+    - restart php-fpm-version
+    - restart php-fpm
   tags:
-    - zabbix-web
-    - init
     - config

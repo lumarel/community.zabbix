@@ -59,7 +59,6 @@ These rules are required for any contributions proposing a new Zabbix module or 
   * In `DOCUMENTATION` block via `extends_documentation_fragment` keyword.
   * In module `argument_spec` as a set of module parameters.
 * Implement proper logout mechanism as other modules do.
-* Use the same version of `zabbix-api` library as defined in collection requirements.
 * Comply with [Ansible module best practices](https://docs.ansible.com/ansible/devel/dev_guide/developing_modules_best_practices.html).
 
 ## Testing and Development
@@ -121,7 +120,7 @@ Modules are tested via `ansible-test` command. Configurations for integration an
 Running test suites locally requires a few dependencies to be installed. Same as for the roles, it is recommended to use [Python virtual environment](#virtualenv):
 
 ```bash
-pip install docker-compose zabbix-api
+pip install docker-compose
 ```
 
 Integration test suite for modules can be run with the commands below:
@@ -129,7 +128,7 @@ Integration test suite for modules can be run with the commands below:
 ```bash
 export zabbix_version=X.Y
 docker-compose up -d
-ansible-test integration -v --color --retry-on-error --continue-on-error --diff
+ansible-test integration -v --color --continue-on-error --diff [test_zabbix_xyz]
 docker-compose down
 ```
 *Notes*:
