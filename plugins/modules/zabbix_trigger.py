@@ -295,7 +295,7 @@ class Trigger(ZabbixBase):
             host = template_name
         triggers = []
         try:
-            triggers = self._zapi.trigger.get({'filter': {'description': trigger_name, 'host': host}})
+            triggers = self._zapi.trigger.get({'filter': {'description': trigger_name, 'host': host}, "selectDependencies": "extend", "selectTags": "extend"})
         except Exception as e:
             self._module.fail_json(msg="Failed to get trigger: %s" % e)
         return triggers
@@ -330,6 +330,7 @@ class Trigger(ZabbixBase):
                 params['type'] = 1
             else:
                 params['type'] = 0
+            del params['generate_multiple_events']
         if 'recovery_mode' in params:
             recovery_mode_id = self.RECOVERY_MODES[params['recovery_mode']]
             params['recovery_mode'] = recovery_mode_id
@@ -382,7 +383,7 @@ class Trigger(ZabbixBase):
 
     def check_trigger_changed(self, old_trigger):
         try:
-            new_trigger = self._zapi.trigger.get({"triggerids": "%s" % old_trigger['triggerid']})[0]
+            new_trigger = self._zapi.trigger.get({"triggerids": "%s" % old_trigger['triggerid'], "selectDependencies": "extend", "selectTags": "extend"})[0]
         except Exception as e:
             self._module.fail_json(msg="Failed to get trigger: %s" % e)
         return old_trigger != new_trigger
